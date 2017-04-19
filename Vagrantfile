@@ -1,6 +1,12 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
+
+# TODO: use vagrant env plugin to remove some of this boilerplate
+# to pull in environment variables from
+# peoples rc files
 #
+# move from bash to ruby for provisioning scripts so they're
+# testable and more accessible for the team to work on
 
 if ARGV.empty? or ARGV[0] == '--help'
   puts "
@@ -26,10 +32,23 @@ if ARGV.empty? or ARGV[0] == '--help'
   exit
 end
 
+required_plugins = ['vagrant-docker-login', 'vagrant-share']
+plugins_installed = true
 
-unless Vagrant.has_plugin?("vagrant-docker-login")
-  system("vagrant plugin install vagrant-docker-login")
-  puts "Dependencies installed, please try the command again."
+newly_installed = []
+for plugin in required_plugins
+  unless Vagrant.has_plugin?(plugin)
+    plugins_installed = false
+    newly_installed << plugin
+    command_str = "vagrant plugin install %s" % plugin
+    system(command_str)
+  end
+end
+
+if not plugins_installed
+  puts "Vagrant dependencies installed"
+  puts newly_installed.join(",")
+  puts "Please try the command again"
   exit
 end
 
