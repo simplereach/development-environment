@@ -1,16 +1,18 @@
+#!/bin/bash
+eval VAGRANT_HOME=~vagrant
+export VAGRANT_HOME=$VAGRANT_HOME
 export DEBIAN_FRONTEND=noninteractive
-export VERTICA_DOWNLOAD_URL=https://my.vertica.com/client_drivers/8.0.x/8.0.1/vertica-client-8.0.1-0.x86_64.tar.gz
-export PYTHON_DOWNLOAD_URL=https://www.python.org/ftp/python/2.7.13/Python-2.7.13.tgz
-echo "Downloading Vertica"
-function md5check()
-{
-   check=`md5sum $1 | cut -d ' ' -f1`
-  if [ "$check" = "$2" ]; then
-    return 0
-  else
-    return 1
-  fi
-}
+export LOCAL_DIR=$VAGRANT_HOME/.local
+export BUILD_DIR="$LOCAL_DIR/build"
+export BIN_DIR="$LOCAL_DIR/bin"
+export VERTICA_DOWNLOAD_FILE=vertica-client-8.0.1-0.x86_64.tar.gz
+export VERTICA_DOWNLOAD_URL="https://my.vertica.com/client_drivers/8.0.x/8.0.1/$VERTICA_DOWNLOAD_FILE"
+export PYTHON_SRC_DIR="$BUILD_DIR/Python-2.7.13"
+export PYTHON_DOWNLOAD_FILE="Python-2.7.13.tgz"
+export PYTHON_DOWNLOAD_URL="https://www.python.org/ftp/python/2.7.13/$PYTHON_DOWNLOAD_FILE"
+export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
+export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+function exe() { echo "\$ $@" ; "$@" ; }
 
 function install_oh_my_zsh {
 
@@ -28,7 +30,7 @@ function install_oh_my_zsh {
   echo "default shell changed to zsh for user '$change_user'"
 
   # download install script
-  curl -fsSL "$ohmyzsh_repo/master/tools/install.sh" \
+  curl -qfsSL "$ohmyzsh_repo/master/tools/install.sh" \
     -o "$change_user_home/install_ohmyzsh.sh"
   echo "oh-my-zsh install script downloaded to" \
        "$change_user_home/install_ohmyzsh.sh"
@@ -37,24 +39,15 @@ function install_oh_my_zsh {
   if [ ! -d "$change_user_home/.oh-my-zsh" ]; then
 
     if [ "$change_user" == 'root' ]; then
-      sh "$change_user_home/install_ohmyzsh.sh"
+      sh "$change_user_home/install_ohmyzsh.sh" > /dev/null 2>&1
     else
-      su -c "sh '$change_user_home/install_ohmyzsh.sh'" "$change_user"
+      su -c "sh '$change_user_home/install_ohmyzsh.sh'" "$change_user" > /dev/null 2>&1
     fi
 
     # change zsh theme
     sed -i 's/ZSH_THEME="robbyrussell"/ZSH_THEME="bira"/' \
       "$change_user_home/.zshrc"
 
-cat >> "$change_user_home/.zshrc"  <<- 'EOF'
-export VIRTUALENVWRAPPER_PYTHON=/usr/local/bin/python2.7
-export VIRTUALENVWRAPPER_VIRTUALENV_ARGS='--no-site-packages'
-source ~/.local/bin/virtualenvwrapper.sh
-export WORKON_HOME=$HOME/.virtualenvs
-export PIP_VIRTUALENV_BASE=$WORKON_HOME
-export PIP_RESPECT_VIRTUALENV=true
-export PATH=~/.local/bin:$PATH
-EOF
 
     # make sure that .zshrc is owned by user
     chown "$change_user:$change_user" "$change_user_home/.zshrc"
@@ -67,14 +60,35 @@ EOF
   # remove install script, goodbye
   rm -f "$change_user_home/install_ohmyzsh.sh"
 
+cat >> "$change_user_home/.zshrc"  <<- 'EOF'
+export PATH=~/.local/bin:$PATH
+export VIRTUALENVWRAPPER_PYTHON=~/.local/bin/python2.7
+export VIRTUALENVWRAPPER_VIRTUALENV_ARGS='--no-site-packages'
+source ~/.local/bin/virtualenvwrapper.sh
+export WORKON_HOME=$HOME/.virtualenvs
+export PIP_VIRTUALENV_BASE=$WORKON_HOME
+export PIP_RESPECT_VIRTUALENV=true
+export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
+export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+export VERTICA_LOG_DIR=/tmp/verticalogs
+export LOG_DIR=/tmp/logs
+export facebook_oauth_token=EAAI6x0nElXcBAP1NzieDxln8X45WMKkZBwAxFH2vz7swXWTjyXz4I6QyCD03HRyj0Mj5YXyyxSnKaUhPkhds1ZAZCR02eQ1aPPZBr9XfpL5TKqJhfrnjDgSdp4caReoMaDisznwNXm2b6qiiMfwFX5tZChwZAv8PsZD
+google_oauth_client_id=1018429307889-8m2sei2rf2aseepgsqelds438mqsm53b.apps.googleusercontent.com
+google_oauth_client_secret=6n1dgWoyjqcG_GLi7AuRghJs
+google_oauth_refresh_token=1/-zsxHGe_kyQZ03Hfpn9GNR13KHV1Kk_hFnxbXkAkBkM`
+EOF
 }
 
 
-apt-key adv --keyserver hkp://pgp.mit.edu:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D > /dev/null 2>&1
+
+
+
+apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D
 echo deb https://apt.dockerproject.org/repo ubuntu-trusty main > /etc/apt/sources.list.d/docker.list
 
 apt-get -y -qq update
 add-apt-repository -y ppa:git-core/ppa > /dev/null 2>&1
+add-apt-repository -y ppa:pi-rho/dev > /dev/null 2>&1
 
 apt-get -y -qq update
 
@@ -95,47 +109,53 @@ git \
 libcurl4-openssl-dev \
 aufs-tools \
 zsh \
+tree \
+tmux-next \
 docker-engine=1.13.1-0~ubuntu-trusty > /dev/null 2>&1
 
 
-chsh -s /bin/zsh vagrant
+install_oh_my_zsh 'vagrant' $VAGRANT_HOME
 
-install_oh_my_zsh 'root' '/root'
-install_oh_my_zsh 'vagrant' '/home/vagrant' > /dev/null 2>&1
+echo "VAGRANT_REPOSITORY_FOLDER $VAGRANT_REPOSITORY_FOLDER"
+! test -d "$VAGRANT_REPOSITORY_FOLDER"  && mkdir -p "$VAGRANT_REPOSITORY_FOLDER" && chown -R vagrant.vagrant "$VAGRANT_REPOSITORY_FOLDER"
+echo "REPOSITORY_FOLDER $REPOSITORY_FOLDER"
+echo "LOG_FOLDER $LOG_FOLDER"
+
+echo "MAKING LOCAL DIRECTORY STRUCTURE"
+exe rm -rf "$LOCAL_DIR"
+exe mkdir -p "$BUILD_DIR"
+exe mkdir -p "$BIN_DIR"
 
 # collect all the files
-mkdir -p ~vagrant/.simplereach/build
-cd ~vagrant/.simplereach/build
-
+exe cd "$BUILD_DIR"
 # add check for local file, error checking, early exit and message if error
 echo "Downloading Python"
-wget -q $PYTHON_DOWNLOAD_URL
+exe curl -sq $PYTHON_DOWNLOAD_URL -o $PYTHON_DOWNLOAD_FILE
 echo "Downloading Vertica"
-wget -q $VERTICA_DOWNLOAD_URL
-
+exe curl -sq $VERTICA_DOWNLOAD_URL -o $VERTICA_DOWNLOAD_FILE
 echo "installing vertica"
-tar -xzf vertica-client-8.0.1-0.x86_64.tar.gz
-cp opt/vertica/bin/vsql /usr/local/bin/
-chmod a+x /usr/local/bin/vsql
-mkdir -p /var/log/vertica && touch /var/log/vertica/rejected.log && touch /var/log/vertica/exceptions.log && chown -R vagrant /var/log/vertica
-rm -rf opt
-chown -R vagrant.vagrant ~vagrant/.simplereach
+exe tar -xzf $VERTICA_DOWNLOAD_FILE
 
-echo "installing python source"
+exe cp opt/vertica/bin/vsql "$BIN_DIR"
+exe chmod a+x $BIN_DIR/vsql
+exe mkdir -p /var/log/vertica && touch /var/log/vertica/rejected.log && touch /var/log/vertica/exceptions.log && chown -R vagrant /var/log/vertica
+exe rm -rf opt
+
+echo "compiling python source"
 # install python TODO: find a ubuntu package for this
-tar -xzf Python-2.7.13.tgz > /dev/null 2>&1
-cd Python-2.7.13 && ./configure -q && make altinstall > /dev/null 2>&1
-cd ../
-rm -rf Python-2.7.13*
-ln -s /usr/local/bin/python2.7 /usr/local/bin/python
+exe cd $BUILD_DIR
+exe tar -xzf $PYTHON_DOWNLOAD_FILE
+exe cd $PYTHON_SRC_DIR || exit 1
+exe ./configure -q --prefix="$VAGRANT_HOME/.local" && make altinstall > /dev/null 2>&1
 
+exe test -d Python-2.7.13 && rm -rf Python-2.7.13
 
-mkdir -p /etc/simplereach
+exe mkdir -p /etc/simplereach
 # config file for postgres
 cat > /etc/simplereach/postgres.json  <<- 'EOF'
  {
    "database": "skycutter_development",
-   "username": "",
+   "username": "postgres",
    "password": "",
    "host": "localhost",
    "port": "5432"
@@ -147,12 +167,20 @@ cat > /etc/simplereach/vertica.json  <<- 'EOF'
 { "VSQL_PATH": "/usr/local/bin/vsql",
   "REJECTED_LOG": "/var/log/vertica/rejected.log",
   "EXCEPTIONS_LOG": "/var/log/vertica/exceptions.log",
-  "LOG_DIR": "/var/log"
+  "LOG_DIR": "/var/log",
+  "host": "localhost",
+  "database": "verticadb",
+  "vertica_user": "dbadmin",
+  "vertica_password": "",
+  "vertica_port": "5433"
 }
 EOF
 
 
-curl -sL https://github.com/docker/compose/releases/download/1.8.1/docker-compose-`uname -s`-`uname -m` > /usr/local/bin/docker-compose > /dev/null
-chmod a+x /usr/local/bin/docker-compose
-# add vagrant to the docker group so it can access the socket
-usermod -aG docker vagrant
+exe curl -qsL "https://github.com/docker/compose/releases/download/1.8.1/docker-compose-$(uname -s)-$(uname -m) -o $BIN_DIR/docker-compose"  > /dev/null 2>&1 && chmod a+x "$BIN_DIR/docker-compose"
+
+# add vagrant to the docker group so it can access the docker daemon socket
+exe usermod -aG docker vagrant
+
+exe chown -R vagrant.vagrant $LOCAL_DIR
+
