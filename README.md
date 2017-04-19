@@ -1,4 +1,4 @@
-# Running the events writer for development and testing.
+# Using vagrant for development
 # Prerequisites
 Vagrant
 Ruby
